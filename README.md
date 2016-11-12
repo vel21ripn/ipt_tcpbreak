@@ -6,7 +6,7 @@ Sending optional string to client, send tcp-reset to client,  send tcp-reset to 
 The minimum requirements for the kernel configuration
  CONFIG_NF_CONNTRACK=m or y
  
-Developed for kernel 4.X (tested on 4.8.6)
+Developed for kernel 4.X (tested on 4.8.6, 4.4.x, 3.18.44)
 
 Example:
 ```
@@ -14,5 +14,5 @@ Example:
  # iptables -A FORWARD -p tcp --dport 8080 -m string --string "GET " --algo bm -j TCPBREAK --http302 'http://localhost/'
  # iptables -A INPUT -m state --state INVALID -j DROP
  # iptables -A INPUT -p tcp --dport 8080 -m string --string "GET " --algo bm -j TCPBREAK --http302 'http://localhost/'
- # iptables -A INPUT -p tcp --dport 25 -m string --string "ehlo" --algo bm -j TCPBREAK --raw 'quit'
+ # iptables -A INPUT -p tcp --dport 25 -m string --string "ehlo" --algo bm -j TCPBREAK --raw 'quit\r\n'
 ```
