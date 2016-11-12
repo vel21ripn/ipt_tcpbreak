@@ -4,7 +4,7 @@
 *.ko.cmd
 .tmp_versions
 Module.symvers
-ipt_tcpbreak.mod.c
+ipt_TCPBREAK.mod.c
 modules.order
 .init.sh
 .stop.sh
