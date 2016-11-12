@@ -92,12 +92,10 @@ static void nf_ct_attach2(struct sk_buff *nskb, const struct sk_buff *skb,int re
 }
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 0, 0)
-#define	NF_SEND_RESET(par, oldskb, hook, rev) nf_send_reset(oldskb, hook, rev)
 #define IP_ROUTE_ME_HARDER(par,skb,atype) ip_route_me_harder(skb, atype)
 #define IP_LOCAL_OUT(par, newskb) ip_local_out( newskb) 
 #define IP_OUTPUT(par, newskb) ip_output2( newskb) 
 #else
-#define	NF_SEND_RESET(par, oldskb, hook, rev) nf_send_reset(par_net(par), oldskb, hook, rev)
 #define IP_ROUTE_ME_HARDER(par,skb,atype) ip_route_me_harder(par_net(par), skb, atype)
 #define IP_LOCAL_OUT(par, newskb) ip_local_out(par_net(par), newskb->sk, newskb) 
 #define IP_OUTPUT(par, newskb) ip_output2(par_net(par), newskb) 
@@ -180,8 +178,11 @@ static struct sk_buff *send_tcpv4_packet(struct sk_buff *oldskb,
 	newtcp->check = tcp_v4_check(sizeof(struct tcphdr)+msglen,
 			newip->saddr, newip->daddr, newskb->csum);
 
-	if (IP_ROUTE_ME_HARDER(par, newskb, 
-		par->hooknum == NF_INET_FORWARD ? RTN_UNSPEC:RTN_UNSPEC) != 0) {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 0, 0)
+	skb_dst_set_noref(newskb, skb_dst(oldskb));
+#endif
+
+	if (IP_ROUTE_ME_HARDER(par, newskb, RTN_UNSPEC) != 0) {
 		skb_dst_drop(newskb);
 		kfree_skb(newskb);
 		return NULL;
@@ -214,7 +215,7 @@ tcpbreak_tg4(struct sk_buff *oldskb, const struct xt_action_param *par)
 	enum ip_conntrack_info ctinfo;
 	struct nf_conn * ct;
 	unsigned int statebit;
-	char rep[1200];
+	char rep[sizeof(info->location)+64];
 
 	ct = nf_ct_get (oldskb, &ctinfo);
 
@@ -283,8 +284,7 @@ tcpbreak_tg4(struct sk_buff *oldskb, const struct xt_action_param *par)
 	return NF_DROP;
 }
 
-static struct xt_target tcpbreak_tg_reg[] __read_mostly = {
-	{
+static struct xt_target tcpbreak_tg_reg __read_mostly = {
 		.name       = "TCPBREAK",
 		.revision   = 0,
 		.family     = NFPROTO_IPV4,
@@ -294,17 +294,16 @@ static struct xt_target tcpbreak_tg_reg[] __read_mostly = {
 		.table      = "filter",
 		.target     = tcpbreak_tg4,
 		.me         = THIS_MODULE,
-	},
 };
 
 static int __init tcpbreak_tg_init(void)
 {
-	return xt_register_targets(tcpbreak_tg_reg, ARRAY_SIZE(tcpbreak_tg_reg));
+	return xt_register_target(&tcpbreak_tg_reg);
 }
 
 static void __exit tcpbreak_tg_exit(void)
 {
-	return xt_unregister_targets(tcpbreak_tg_reg, ARRAY_SIZE(tcpbreak_tg_reg));
+	return xt_unregister_target(&tcpbreak_tg_reg);
 }
 
 module_init(tcpbreak_tg_init);
