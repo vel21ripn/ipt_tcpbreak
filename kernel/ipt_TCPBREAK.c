@@ -274,11 +274,17 @@ tcpbreak_tg4(struct sk_buff *oldskb, const struct xt_action_param *par)
 			htonl(ntohl(save_seq)+old_len),
 			F_TCP_RST, rep, 0);
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 	if(timer_pending(&ct->timeout)) {
 		unsigned long newtime = jiffies + 15*HZ;
 		if (newtime - ct->timeout.expires >= HZ)
 			mod_timer_pending(&ct->timeout, newtime);
 	}
+#else
+        if (nf_ct_is_confirmed(ct)) {
+	        ct->timeout = 15*HZ + nfct_time_stamp;
+	}
+#endif
 	ct->proto.tcp.state = TCP_CONNTRACK_CLOSE;
 	
 	return NF_DROP;
