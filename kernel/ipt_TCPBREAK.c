@@ -178,7 +178,7 @@ static struct sk_buff *send_tcpv4_packet(struct sk_buff *oldskb,
 	newtcp->check = tcp_v4_check(sizeof(struct tcphdr)+msglen,
 			newip->saddr, newip->daddr, newskb->csum);
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 0, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 0, 0) || LINUX_VERSION_CODE > KERNEL_VERSION(4, 9, 0)
 	skb_dst_set_noref(newskb, skb_dst(oldskb));
 #endif
 
