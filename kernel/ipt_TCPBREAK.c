@@ -27,14 +27,51 @@
 #include "print_tcp_skb.c"
 #endif
 
-static inline struct net *par_net(const struct xt_action_param *par)
-{
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 4, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 14, 0)
+
+  #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 0, 0)
+
+    #define IP_ROUTE_ME_HARDER(par,skb,atype) ip_route_me_harder(skb, atype)
+    #define IP_LOCAL_OUT(par, newskb) ip_local_out( newskb) 
+    #define IP_OUTPUT(par, newskb) ip_output2( newskb)
+
+  #else
+
+
+    #define IP_ROUTE_ME_HARDER(par,skb,atype) ip_route_me_harder(par_net(par), skb, atype)
+    #define IP_LOCAL_OUT(par, newskb) ip_local_out(par_net(par), newskb->sk, newskb) 
+    #define IP_OUTPUT(par, newskb) ip_output2(par_net(par), newskb)
+  #endif
+
+    static inline struct net *par_net(const struct xt_action_param *par)
+    {
+    #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 4, 0)
         return par->net;
-#else
+    #else
         return dev_net((par->in != NULL) ? par->in : par->out);
+    #endif
+    }
+
+    static void nf_ct_set(struct sk_buff *nskb,struct nf_conn *ct,enum ip_conntrack_info ctinfo)
+    {
+	nskb->nfct = &ct->ct_general;
+	nskb->nfctinfo = ctinfo;
+	nf_conntrack_get(nskb->nfct);
+    }
+    static inline struct nf_conntrack *skb_nfct(struct sk_buff *nskb) {
+	return nskb->nfct;
+    }
+    static inline int xt_hooknum(const struct xt_action_param *par) {
+	    return par->hooknum;
+    }
+#else
+
+  #define IP_ROUTE_ME_HARDER(par,skb,atype) ip_route_me_harder(xt_net(par), skb, atype)
+  #define IP_LOCAL_OUT(par, newskb) ip_local_out(xt_net(par), newskb->sk, newskb) 
+  #define IP_OUTPUT(par, newskb) ip_output2(xt_net(par), newskb)
+
 #endif
-}
+
 
 /* 
  * ip_local_out with nf_hook NF_INET_POST_ROUTING
@@ -73,6 +110,7 @@ static int ip_output2(struct net *net, struct sk_buff *skb)
 	return err;
 }
 #endif
+
 /*
  * copy nf_conntrack_attach
  */
@@ -86,20 +124,10 @@ static void nf_ct_attach2(struct sk_buff *nskb, const struct sk_buff *skb,int re
 	ctinfo = (CTINFO2DIR(ctinfo) != IP_CT_DIR_ORIGINAL) ^ rev ?
 			IP_CT_RELATED_REPLY : IP_CT_RELATED;
 
-	nskb->nfct = &ct->ct_general;
-	nskb->nfctinfo = ctinfo;
-	nf_conntrack_get(nskb->nfct);
+	nf_ct_set(nskb, ct, ctinfo);
+	nf_conntrack_get(skb_nfct(nskb));
 }
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 0, 0)
-#define IP_ROUTE_ME_HARDER(par,skb,atype) ip_route_me_harder(skb, atype)
-#define IP_LOCAL_OUT(par, newskb) ip_local_out( newskb) 
-#define IP_OUTPUT(par, newskb) ip_output2( newskb) 
-#else
-#define IP_ROUTE_ME_HARDER(par,skb,atype) ip_route_me_harder(par_net(par), skb, atype)
-#define IP_LOCAL_OUT(par, newskb) ip_local_out(par_net(par), newskb->sk, newskb) 
-#define IP_OUTPUT(par, newskb) ip_output2(par_net(par), newskb) 
-#endif
 
 #define F_TCP_ACK 1
 #define F_TCP_RST 2
@@ -197,7 +225,7 @@ static struct sk_buff *send_tcpv4_packet(struct sk_buff *oldskb,
 	}
 	nf_ct_attach2(newskb,oldskb,rev);
 //	newskb->nf_trace = 1;
-	if (par->hooknum == NF_INET_FORWARD) {
+	if (xt_hooknum(par) == NF_INET_FORWARD) {
 		IP_OUTPUT(par, newskb);
 	} else {
 		IP_LOCAL_OUT(par, newskb);
@@ -219,9 +247,15 @@ tcpbreak_tg4(struct sk_buff *oldskb, const struct xt_action_param *par)
 
 	ct = nf_ct_get (oldskb, &ctinfo);
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,12,0)
 	statebit = ct ? (nf_ct_is_untracked(ct) ?
 				XT_STATE_UNTRACKED:XT_STATE_BIT(ctinfo)) :
 			XT_STATE_INVALID ;
+#else
+	statebit = ctinfo == IP_CT_UNTRACKED ?
+			XT_STATE_UNTRACKED:XT_STATE_BIT(ctinfo);
+
+#endif
 
 	if (!(statebit & IS_ESTABLISHED) ||
 			ct->proto.tcp.state != TCP_CONNTRACK_ESTABLISHED) {
