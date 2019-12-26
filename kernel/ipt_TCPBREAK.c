@@ -154,8 +154,12 @@ static struct sk_buff *send_tcpv4_packet(struct sk_buff *oldskb,
 
 	skb_reserve(newskb, LL_MAX_HEADER);
 	newskb->protocol = IPPROTO_TCP;
-
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0)
 	nf_reset(newskb);
+#else
+	nf_reset_ct(newskb);
+#endif
+
 	skb_init_secmark(newskb);
 	skb_shinfo(newskb)->gso_size = 0;
 	skb_shinfo(newskb)->gso_segs = 0;
