@@ -66,7 +66,11 @@
     }
 #else
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0)
+  #define IP_ROUTE_ME_HARDER(par,skb,atype) ip_route_me_harder(xt_net(par), skb->sk, skb, atype)
+#else
   #define IP_ROUTE_ME_HARDER(par,skb,atype) ip_route_me_harder(xt_net(par), skb, atype)
+#endif
   #define IP_LOCAL_OUT(par, newskb) ip_local_out(xt_net(par), newskb->sk, newskb) 
   #define IP_OUTPUT(par, newskb) ip_output2(xt_net(par), newskb)
 
