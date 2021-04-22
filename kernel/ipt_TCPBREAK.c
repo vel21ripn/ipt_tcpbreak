@@ -66,7 +66,8 @@
     }
 #else
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0) || \
+   (LINUX_VERSION_CODE >= KERNEL_VERSION(5,4,100) && LINUX_VERSION_CODE < KERNEL_VERSION(5,5,0))
   #define IP_ROUTE_ME_HARDER(par,skb,atype) ip_route_me_harder(xt_net(par), skb->sk, skb, atype)
 #else
   #define IP_ROUTE_ME_HARDER(par,skb,atype) ip_route_me_harder(xt_net(par), skb, atype)

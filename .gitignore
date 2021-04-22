@@ -1,7 +1,8 @@
 *.o
 *.[ks]o
-*.o.cmd
-*.ko.cmd
+*.o.d
+*.cmd
+*.mod
 .tmp_versions
 Module.symvers
 ipt_TCPBREAK.mod.c
